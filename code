@@ -1,0 +1,1140 @@
+####################################################################
+#Functions for updating memory usage and peak memory usage estimates
+####################################################################
+
+MEMORY=0
+PEAK_MEMORY=0
+overhead=500
+
+def update_PEAK_MEMORY():
+    #This function updates the peak memory and is called every time
+    #add_memory or sub_memory is called
+    
+    ####################
+    #global variables!!#
+    ####################
+
+    global MEMORY
+    global overhead
+    global PEAK_MEMORY
+    
+    PEAK_MEMORY=max(PEAK_MEMORY, MEMORY)
+    return PEAK_MEMORY
+
+
+def add_memory(n):
+    #This function adds the memory required to store an integer and 
+    #is called when objects are initialised. It also updates the peak
+    #memory usage.    
+
+    ####################
+    #global variables!!#
+    ####################
+
+    global MEMORY
+    global overhead
+    global PEAK_MEMORY    
+
+    MEMORY=MEMORY+ceil(log(RR( abs(n)+1 ))/log(2))+1+overhead
+    update_PEAK_MEMORY()
+    
+def sub_memory(n):
+    #This function removes the memory required to store an integer and 
+    #is referenced when objects are deleted. It also updates the peak
+    #memory usage.
+
+    ####################
+    #global variables!!#
+    ####################
+
+    global MEMORY
+    global overhead
+    global PEAK_MEMORY
+    
+    MEMORY=MEMORY-(ceil(log(RR( abs(n)+1 ))/log(2))+1+overhead)
+    update_PEAK_MEMORY()
+
+
+#####################################################################
+# Integer class with memory usage calculated   
+#####################################################################    
+
+class int_with_memory:
+    
+    #This class represents integers while also estimating memory usage
+        
+    def __init__(self, n):
+               
+	# POLICY: the only code allowed to change int_with_memory.value 
+	# is here
+	
+        self.value=ZZ(n)   
+        
+        add_memory(self.value)
+        
+    def __add__(self, other):
+        x=self.value + other.value
+      
+        return int_with_memory(x)
+        
+    def __sub__(self, other):
+        x=self.value-other.value
+        
+        return int_with_memory(x)
+        
+    def __mul__(self, other):
+    
+	####################
+	#global variables!!#
+	####################
+
+	global MEMORY
+	global overhead
+    
+        x=self.value*other.value
+
+	#estimate the auxiliary memory required for multiplication of 
+	#integers and add it to the memory usage
+	
+        add_memory(10*x)
+        sub_memory(10*x)
+        
+        return int_with_memory(x)
+        
+    def __div__(self, other):
+    
+	####################
+	#global variables!!#
+	####################
+
+	global MEMORY
+	global overhead
+    
+        x=self.value/other.value
+        
+        #estimate the auxiliary memory required for division of 
+	#integers and add it to the memory usage
+	
+        add_memory(10*x)
+        sub_memory(10*x)
+        
+        return int_with_memory(x)    
+        
+    def __mod__(self, other):
+    
+	####################
+	#global variables!!#
+	####################
+
+	global MEMORY
+	global overhead
+                
+        x=self.value % other.value
+        
+        #estimate the auxiliary memory required for division of 
+	#integers and add it to the memory usage
+	
+	add_memory(10*x)
+        sub_memory(10*x)
+	
+        return int_with_memory(x)
+
+    def __del__(self):
+        sub_memory(self.value)
+        	
+        self.value=None
+        
+    def __eq__(self, other):
+	return self.value == other.value
+	
+    def __ne__(self, other):
+	
+	return self.value != other.value        
+    
+    def __repr__(self):
+        return "%s" % (self.value)
+        
+###############################################################    
+#Class to represent recurrence relation for kurepas conjecture#
+###############################################################    
+class kurepa_vector:
+   
+    def __init__(self, a,b):
+        #x represents the first entry and y represents the second entry
+        
+        self.x=int_with_memory(ZZ(a))   
+        self.y=int_with_memory(ZZ(b))
+        
+    def __mul__(self, other):
+        
+        return kurepa_vector( self.x.value*other.x.value, self.y.value*other.x.value+other.y.value)
+    
+    def __mod__(self, other):
+       
+	return kurepa_vector((self.x % other).value, (self.y % other).value )
+        
+    def __del__(self):
+        
+        self=None    
+        
+    def __eq__(self, other):
+        
+        return (self.x == other.x) and (self.y == other.y)
+        
+    def __ne__(self, other):
+        
+        return self.x != other.x or self.y != other.y
+        
+    def __repr__(self):
+    
+        return "(%s, %s)" % (self.x.value, self.y.value)   
+        
+################################################################
+#Test functions using Kurepa's conjecture
+################################################################
+
+#define a constant which is the number of tests
+
+number_of_tests=100
+
+#define an initial vector
+
+initial_vector=kurepa_vector(1,1)
+
+#define a get_object function which returns kurepa_vector(n,n)
+
+def get_object(n):
+#this function has an input of an integer n.
+
+  return kurepa_vector(n,n)
+
+#define a function which returns the product of the objects
+  
+def multiply_objects(X,Y):
+    return Y*X
+
+#define a get_modulus function
+
+
+def get_modulus(n):
+#if n is prime, return n else return 1
+
+  if n in Primes():
+    return int_with_memory( ZZ(n) )
+    
+  else:
+      return int_with_memory( ZZ(1) ) 
+
+def multiply_moduli(m,n):
+  return m*n
+  
+def reduce_object(X, n):
+    return X % n  
+
+def hypothetical_size(X):
+  #This is the hypothetical number of bits required to store X with no overhead
+  
+  return ceil(log(X.x.value+X.y.value, 2)+2  )
+
+def get_size(X):
+  
+  #This function estimates the number of bits required to store X and includes overhead
+  
+  ##################
+  #global variables#
+  ##################
+  global overhead
+
+  return( hypothetical_size(X)  +overhead )
+  
+############################################
+#Stage 2 Functions
+############################################
+
+def product_tree(get_object, multiply_objects, start, end, threshold, D=None):
+
+#This function has inputs of two functions get_object and multiply_objects and three
+#integers start, end and threshold. It has an optional input of a dictionary D.
+#This function has an output of A(start)*...*A(end-1) which is calculated recursively
+#by bisecting the interval [start, end). Furthermore, any subproduct A(m)*...*A(n) 
+#which was calculated is stored in D if (n-m)>threshold. These entries can be 
+#accessed by D[(m,n)]. To store all subproducts set threshold to 0 and to store 
+#none of the subproducts, set threshold to (end-start).
+#Note that if no dictionary is supplied, it is assumed that the subproducts are not 
+#required and therefore threshold is set to end-start.
+
+  assert (end>start)
+  
+  #if no dictionary is input, create a new one
+
+  if D is None:
+    D={}
+    threshold= end - start
+  
+  #Base case of the recursion when end=start+1
+  if (end-start) == 1:
+
+    if threshold == 0:
+    
+      D[start, end]=get_object(start)
+      
+    return get_object(start)
+
+  #Bisect the interval into interval_1 and interval_2
+  middle=(start+end)//2
+  
+  #Calculate the product of interval_1
+  left_product=product_tree(get_object, multiply_objects, start, middle, threshold, D)
+
+  #Calculate the product of interval_2
+  right_product=product_tree(get_object, multiply_objects, middle, end, threshold, D)
+  
+  #Calculate the product of the two subproducts and store it in D if necessary
+  full_product=multiply_objects(left_product, right_product)
+  
+  if threshold < (end-start) :
+    D[start, end]=full_product
+     
+  #Clear variables which are now unneccessary
+  del left_product, right_product
+  
+  return full_product
+  
+def retrieve_node_value(get_object,multiply_objects, start, end, D):
+#This function has inputs of two functions get_object and multiply_objects, two
+#integers start and end and a dictionary D. The function returns A(start)*...*A(end-1)
+#by first searching the dictionary to see if the value is stored there; otherwise it computes
+#it by using the product_tree function.
+  
+  #Check if the value is stored in the entry and return None if it is not
+  node_value=D.get((start,end), None)
+  
+  #If the entry is not stored, compute it without storing subproducts
+    
+  if node_value is None:
+    node_value=product_tree(get_object, multiply_objects, start,end, (end-start), {})
+    
+  return node_value  
+  
+def width_remainder_forest(start,end, total_memory):
+
+#This function has inputs of 3 positive integers M,N and total_memory. Suppose that we are using an 
+#remainder forest to calculate C(n). This calculates the width of the remainder forest such
+#the peak memory usage of each tree in the forest in bits is less than total_memory and returns this
+#width.
+
+#This function assumes that the first tree in the forest is an upper bound on all the trees
+#since the product of the moduli provides the bound of the size and the first tree
+#has the largest modulus.
+
+    global overhead
+    
+    #Check there is sufficient memory
+    
+    assert (total_memory-(end-start)*log(2)>0)
+    
+    #initial guess of width w
+    w=RR(2*(total_memory)*log(2)^2/(log(total_memory))^2)
+    
+    #use newtons method to get better guesses 
+    x=var('x')
+    f=2*x*(log(x,2)^2*log(end,2)+log(x,2)*(3+overhead)+2*overhead)
+    g=diff(f,x)
+        
+    while (total_memory-(end-start)*log(2) )<f(w):
+        
+        w=w-f(w)/g(w)
+        
+    #iterate through to find the largest such w    
+    while total_memory-(end-start)*log(2) >f(w):
+        w=w+1
+        
+    w=w-1
+    
+    #note that w must be between 1 and N-M        
+    return max( min( floor( w ), end-start ),1 )
+
+def remainder_tree(start, end, initial_vector, moduli_dict, object_dict, get_object,get_modulus,  multiply_object,multiply_moduli,reduce_object, D ):
+
+  #This has function has two positive integers start and end, five functions
+  #get_object,get_modulus,  multiply_object,multiply_moduli and reduce_object and  three
+  #dictionaries moduli_dict, object_dict and D. This function calculates C(start), ..., C(end-1) recursively 
+  #and stores these in the dictionary D. The output is D. 
+  #Note that this function assumes that the initial vector has been stored in the dictionary prior to 
+  #running this function
+  
+  assert(start<end)
+  
+   #Base Case
+  
+  if end==(start+1):
+  
+     
+      
+      if start in Primes():
+          D[start]=initial_vector
+      
+      return D
+      
+  else:  
+    
+    #Bisect the interval into two subintervals interval_1 and interval_2 
+    middle=(start+end)//2  
+          
+    #Calculate the value of the left subinterval
+    
+    left_modulus=retrieve_node_value(get_modulus, multiply_moduli, start, middle, moduli_dict)
+    
+    left_vector= reduce_object( initial_vector, left_modulus  )
+    
+    #Calculate the value of the right subinterval
+    
+    right_object=retrieve_node_value(get_object, multiply_object, start,middle, object_dict) 
+    right_value=multiply_objects(initial_vector, right_object)
+    
+    right_modulus=retrieve_node_value(get_modulus, multiply_moduli, middle, end, moduli_dict)
+    
+    right_vector= reduce_object( right_value , right_modulus )
+    
+    #Clear unnecessary variables
+        
+    
+    del left_modulus, right_object, right_value, right_modulus
+    
+    #Recurse through the left and right branches
+    
+    remainder_tree(start, middle,left_vector, moduli_dict, object_dict, get_object, get_modulus, multiply_object, multiply_moduli,reduce_object, D ) 
+    
+    remainder_tree(middle, end, right_vector, moduli_dict, object_dict, get_object, get_modulus, multiply_object, multiply_moduli,reduce_object, D ) 
+    
+    return D
+  
+    
+    
+def stage2(start,end, total_memory, threshold, initial_vector,  get_object, multiply_objects, get_modulus, multiply_moduli, reduce_object):
+
+  #This function has three inputs of positive integers start, end, total_memory and threshold, 
+  #five functions  retrieve_moduli, retrieve_object, multiply_object, 
+  #multiply_moduli and reduce_object and a vector initial_vector. 
+  #This functions returns a dictionary with entries C(n) which can be accessed by D[n,n+1] while making sure that the 
+  #peak memory usage is less than total_memory.
+  
+  #Calculate product of the moduli without saving the tree
+  
+  moduli_product=product_tree(get_modulus, multiply_moduli, start, end, (end-start), {})
+    
+  width_stage_2=width_remainder_forest(start, end, total_memory)
+  
+  #initialise remainder dictionary
+  
+  remainder_dict={}
+  
+  #create a variable which will be used as a transfer vector between trees  
+  running_product=initial_vector
+    
+  for n in range( ceil( (end-start)/width_stage_2 ) ):
+    
+    moduli_dict={}
+    object_dict={}
+    
+    #create endpoints for each tree
+    
+    M=start+n*width_stage_2
+    N=min(start+(n+1)*width_stage_2, end)
+    
+    #initialise remainder_dict using transfer vector as required by
+    #remainder_tree function
+   
+    #if the threshold is larger than the width of the interval, then change it
+    
+    if (end-start)<threshold:
+      
+      threshold=end-start
+      
+    #Calculate product trees and remainder tree  
+      
+    product_tree(get_object, multiply_objects, M,N, threshold, object_dict)   
+    product_tree(get_modulus, multiply_moduli, M,N, threshold, moduli_dict)
+        
+    remainder_tree(M,N,running_product, moduli_dict, object_dict, get_object, get_modulus, multiply_objects,multiply_moduli, reduce_object, remainder_dict)
+    
+    #create the moduli product for the next tree       
+    moduli_product=moduli_product/retrieve_node_value(get_modulus,multiply_moduli, M,N, moduli_dict)
+    
+    #ALERT
+    #The line below may be incorrect depending on how the initial_vector is defined to be multiplied with the objects
+    
+    #update the transfer vector
+    object_product=retrieve_node_value(get_object,multiply_objects, M,N, object_dict)
+    running_product=multiply_objects( running_product, object_product)
+    running_product= reduce_object( running_product , moduli_product)
+    
+    #clear unnecessary variables
+    del moduli_dict, object_dict, object_product
+    
+  #clear unnecessary variables
+  
+  del running_product
+  
+  return remainder_dict            
+  
+################################
+#Test functions
+################################
+
+def product_tree_test(get_object, multiply_objects, number_of_tests):
+    #This function tests if the product_tree function gives the correct answers
+    #for a full tree, an empty tree and for various randomised thresholds. It has
+    #no output but prints messages if successful and AssertionError otherwise.
+              
+    #test base case using random thresholds
+    for i in range(number_of_tests):
+                
+        #generate endpoints and threshold
+        end=ZZ.random_element(4,1000)
+        start=end-1
+        threshold=ZZ.random_element(0,end-start)
+        
+        value=product_tree(get_object, multiply_objects, start, end, threshold, D=None)
+        
+        assert(value==get_object(start))
+        
+        del value
+    
+    print 'BASE CASE SUCCESS'
+   
+    #test for random start and end and threshold=0 (full product tree is stored)    
+    for i in range(number_of_tests): 
+        
+    #generate endpoints for the interval
+    
+        end=ZZ.random_element(4,1000)
+        start=ZZ.random_element(3,end)
+        threshold=0
+        D={}
+        
+        #calculate the product
+        
+        value=product_tree(get_object, multiply_objects, start, end, threshold, D)
+                
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(start)
+        for j in range(start+1,end):
+            naive_answer=get_object(j)*naive_answer
+               
+        #check the answers are the same
+        assert(value==naive_answer)
+        
+        #clear superfluous variables               
+        del value
+        del naive_answer 
+    
+    print 'FULL TREE SUCCESS'      
+        
+    #test for random start and end and threshold=0 (no elements stored)       
+    for i in range(number_of_tests): 
+        
+    #generate endpoints for the interval
+    
+        end=ZZ.random_element(4,1000)
+        start=ZZ.random_element(3,end)
+        threshold=end-start
+        D={}
+        #calculate the product
+        
+        value=product_tree(get_object, multiply_objects, start, end, threshold, D)
+                
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(start)
+        for j in range(start+1,end):
+            naive_answer=get_object(j)*naive_answer
+        
+        #check the answers are the same
+        assert(value==naive_answer)
+                        
+        del value
+        del naive_answer  
+        
+    print 'NO TREE SUCCESS'  
+
+    #test for random start and end and threshold is random  
+    for i in range(number_of_tests): 
+        
+    #generate endpoints for the interval
+    
+        end=ZZ.random_element(4,1000)
+        start=ZZ.random_element(3,end)
+        threshold=ZZ.random_element(0,end-start)
+        D={}
+        #calculate the product
+        
+        value=product_tree(get_object, multiply_objects, start, end, threshold, D)
+                
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(start)
+        for j in range(start+1,end):
+            naive_answer=get_object(j)*naive_answer
+          
+        #check the answers are the same
+        assert(value==naive_answer)
+        
+        del value
+        del naive_answer  
+         
+    
+    print 'RANDOM TREE SUCCESS'   
+
+def retrieve_node_value_test(get_object, multiply_objects, number_of_tests):
+    #This function tests if the retrieve_node_value function returns the correct
+    #output for randomised subintervals
+    
+    #test using random endpoints with threshold=0 (full tree)
+    
+    #generate endpoints and create the dictionary
+    end=ZZ.random_element(4,1000)
+    start=ZZ.random_element(3,end)
+    threshold=0
+    D={}
+    product_tree(get_object, multiply_objects, start, end, threshold, D)
+        
+    for i in range(number_of_tests):
+        
+        #generate random subintervals
+        N=ZZ.random_element(start+1,end)
+        M=ZZ.random_element(start,N)
+        
+        node_value=retrieve_node_value(get_object,multiply_objects, M,N, D)
+        
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(M)
+        for j in range(M+1,N):
+            naive_answer=get_object(j)*naive_answer
+               
+        #check the answers are the same
+        assert(node_value==naive_answer)
+    
+    print 'FULL TREE SUCCESS'
+    
+    #test when threshold=(end-start) (no tree)
+    
+    #generate endpoints and create the dictionary
+    end=ZZ.random_element(4,1000)
+    start=ZZ.random_element(3,end)
+    threshold=end-start
+    D={}
+    product_tree(get_object, multiply_objects, start, end, threshold, D)
+    
+    for i in range(number_of_tests):
+        
+        #generate random subintervals
+        N=ZZ.random_element(start+1,end)
+        M=ZZ.random_element(start,N)
+        
+        node_value=retrieve_node_value(get_object,multiply_objects, M,N, D)
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(M)
+        for j in range(M+1,N):
+            naive_answer=get_object(j)*naive_answer
+                
+        #check the answers are the same
+        assert(node_value==naive_answer)
+    
+    print 'NO TREE SUCCESS'
+    
+    #test when threshold is randomised as well
+    
+    #generate endpoints and create the dictionary
+    end=ZZ.random_element(4,1000)
+    start=ZZ.random_element(3,end)
+    threshold=ZZ.random_element(0,end-start)
+    D={}
+    product_tree(get_object, multiply_objects, start, end, threshold, D)
+    
+    for i in range(number_of_tests):
+        
+        #generate random subintervals
+        N=ZZ.random_element(start+1,end)
+        M=ZZ.random_element(start,N)
+        
+        node_value=retrieve_node_value(get_object,multiply_objects, M,N, D)
+        
+        #calculate the product naively using a for loop
+        
+        naive_answer=get_object(M)
+        for j in range(M+1,N):
+            naive_answer=get_object(j)*naive_answer
+        
+        #check the answers are the same
+        assert(node_value==naive_answer)
+    
+    print 'RANDOM THRESHOLD SUCCESS'
+    
+    print 'SUCCESS'
+
+#####################################################################
+#Function Definitions for remainder_tree_test and stage2_test 
+#####################################################################
+
+def recursive_product(start, end, get_object, multiply_objects):
+
+#The inputs are two positive integers start and end and two functions 
+#get_object and multiply_objects. The functions output is
+#A(start)*...*A(end-1) and is calculated recursively. 
+
+##################
+#global variables#
+##################
+
+  global MEMORY
+  global PEAK_MEMORY
+ 
+  assert (start<end)
+      
+  #If the interval start-end is of length 1 (the base case for the recursion)
+  if (end-start)==1:
+    return get_object(start)
+
+  #{Bisect the interval start-end into two half open intervals interval_1 and interval_2}
+   
+  middle=(start+end)//2
+     
+  #{Calculate the product of interval_1 recursively}
+  left_product=recursive_product(start, middle, get_object, multiply_objects)
+      
+  #{Calculate the product of interval_2 recursively}
+  right_product=recursive_product(middle, end, get_object, multiply_objects)
+
+  #Calculate the product of the two subproducts
+  full_product=multiply_objects(left_product, right_product)
+ 
+#clear variables which are not necessary anymore 
+
+  del middle, left_product, right_product
+      
+  #{Return the product of product of interval_1 and product of
+  # interval_2}
+  
+  return full_product
+
+######################################  
+  
+def block_size_stage_1(M, total_memory, get_object, get_size):
+
+  #Spec:
+
+  #The input are positive integers M and total_memory and functions 
+  #get_object and get_size. get_size(X) is the number of bits required 
+  #to store X.  The output is a positive integer m which is chosen such 
+  #that get_size( A_{k+m}*...*A_{k+1} )< total_memory 
+  #for any integer k<M-m. 
+  
+  #This function assumes that the size of get_object(M) increases monotonically in M
+
+  # The amount of memory required to store A_{k+m}*...*A_{k+1} is 
+  #get_size( A_{k+m}*...*A_{k+1} )
+  #= hypothetical_size( A_{k+m}*...*A_{k+1} ) +overhead
+  #< m * get_size(A_{k+m})) + overhead 
+  #< m * get_size( A_{M-1} ) + overhead. 
+  #Thus if m < floor(total_memory/get_size(A_{M-1} ) ), then the amount of memory required 
+  #to store #A_{k+m}*...*A_{k+1} is less than total_memory. 
+  #We also note that the block must have minimum length 1 and maximum length M-1.   
+
+   return max( min( floor( (total_memory-overhead)/(get_size( get_object(M-1)) ) ), M-1 ), 1) 
+  
+def product_loop(start, block_width, get_object, multiply_objects, V, moduli_product):
+
+#Spec:
+
+#The inputs are positive integers start and block_width, an initial vector V and the product of the moduli 
+#m_{start}*...*m_{end-1} which is denoted moduli_product. The output is A(start-1)*...*A(1)*V % moduli_product
+#and is calculated in such a way that the memory usage in bits is less
+#than total_memory.
+ 
+  ##################  
+  #global variables#
+  ##################
+
+  global MEMORY
+  global PEAK_MEMORY
+
+  #{Create a variable which will be used as a running product of the objects and the initial vector V}
+  running_product=V
+     
+  #{For each block}
+  for j in range( 0,ceil(start/block_width) ): 
+        
+    #{Calculate the endpoints of each block}
+    M=block_width*j+1
+    N=min(block_width*(j+1)+1,start)
+    
+    #if there is a nonempty interval    
+    if M!=N:
+    
+      #{Calculate the product of the objects in the block}                 
+      interval_product=recursive_product(M, N, get_object, multiply_objects)
+      
+      #{Multiply the running product of all the objects in the previous blocks and the initial vector by the product of the objects in the current block}
+      running_product = interval_product * running_product   # david: use more space
+      
+      #{Delete the product of the objects in the block}
+      del interval_product
+                        
+      #{Reduce this product modulo m_{start}*m_{start+1}*...*m_{end-1}}
+      running_product=running_product % moduli_product
+      
+      
+  #{Return the running product}
+  return running_product
+  
+def stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, V):
+   
+  #Spec:
+
+  #The inputs are three positive integers start, end and total_memory
+  #two functions get_object and get_modulus and an initial vector V. 
+  #This function assumes that start < end and A(n)*V is well defined
+  #as well as A(m)*V % m_n. The output is the vector
+  #A(start-1) * A(start-2) * ... * A(1) * V % (m_{start}*m_{start+1}*...*m_{end-1}) and is
+  #calculated in such a way that #the memory usage in bits is less than total_memory. 
+
+  ##################  
+  #global variables#  
+  ##################
+
+  global MEMORY
+  global PEAK_MEMORY
+    
+  #Calculate the product of m_start,...,m_{end-1} recursively
+    
+  moduli_product=recursive_product(start, end, get_modulus, multiply_objects)
+    
+  #Calculate the width of each block such that the memory required to calculate the product of the objects in each #block is less than the total_memory.
+
+  block_width=block_size_stage_1(start, total_memory,get_object, get_size)
+   
+  #Using the width earlier, subdivide the interval 1 to start-1 into blocks and for each block
+    #Calculate the product of the objects in the block
+    #Multiply the running product of all the objects in the previous blocks and the initial vector by the #product of the objects in the current block
+    #Reduce this product modulo m_{start}*m_{start+1}*...*m_{end-1}
+      
+  final_vector=product_loop(start, block_width, get_object, multiply_objects, V, moduli_product) 
+  
+  return final_vector  
+
+def remainder_tree_test(number_of_tests):
+    #This function checks that the remainder tree gives the correct output 
+    #for randomised endpoints of intervals and memory. Threshold is allowed to 
+    #vary from 0 to the full interval. It outputs AssertionError if any of the tests fail
+    #and prints 'SUCCESS' otherwise.
+    
+    #Note: this requires stage 1 functions
+    
+    initial_vector=kurepa_vector(1,1)
+    
+    for i in range(number_of_tests):
+        
+        #generate random endpoints and check if they have primes in the interval
+        
+        end=ZZ.random_element(4,40)
+        start=ZZ.random_element(3,end)
+        
+        if ( prime_pi(end-1)-prime_pi(start) )!= 0:
+                        
+            #Generate random amounts of memory and  and set threshold=0 (full trees)
+            
+            threshold=0
+            total_memory=2**ZZ.random_element(5,13)
+            
+            #Create the product trees and dictionaries
+            object_dict={}
+            product_tree(get_object, multiply_objects, start, end, threshold, object_dict)
+            moduli_dict={}
+            product_tree(get_modulus, multiply_moduli, start, end, threshold, moduli_dict)
+            
+            remainder_dict={}
+            stage2_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, initial_vector)
+            remainder_dict=remainder_tree(start, end, stage2_vector,  moduli_dict, object_dict, get_object,get_modulus,  multiply_objects,multiply_moduli,reduce_object, remainder_dict )
+            
+            #compare random elements in the remainder dictionary
+            
+            value=dict.keys(remainder_dict)[0]        
+                                   
+            x=factorial(value-1)
+            y=sum(factorial(k) for k in [0,..,value-1])
+                               
+            naive_answer=vector([x,y])% value
+            
+                                    
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])
+                
+    for i in range(number_of_tests):
+        
+        #generate random endpoints and check if they have primes in the interval
+        
+        end=ZZ.random_element(4,1000)
+        start=ZZ.random_element(3,end)
+        
+        if ( prime_pi(end-1)-prime_pi(start) )!= 0:
+                                    
+            #Generate random amounts of memory and set threshold=end-start (no trees)
+            
+            threshold=end-start
+            total_memory=2**ZZ.random_element(5,13)
+            
+            #Create the product trees and dictionaries
+            object_dict={}
+            product_tree(get_object, multiply_objects, start, end, threshold, object_dict)
+            moduli_dict={}
+            product_tree(get_modulus, multiply_moduli, start, end, threshold, moduli_dict)
+                        
+            remainder_dict={}
+            stage2_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, initial_vector)
+            remainder_dict=remainder_tree(start, end, stage2_vector,  moduli_dict, object_dict, get_object,get_modulus,  multiply_objects,multiply_moduli,reduce_object, remainder_dict )
+            
+            #compare random elements in the remainder dictionary
+            #noting that python dictionaries are unordered
+            
+            #select a random entry
+            value=dict.keys(remainder_dict)[0]        
+                                   
+            x=factorial(value-1)
+            y=sum(factorial(k) for k in [0,..,value-1])
+                               
+            naive_answer=vector([x,y])% value
+            
+                                    
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])
+            
+            
+    for i in range(number_of_tests):
+        
+        #generate random endpoints and check if they have primes in the interval
+        
+        end=ZZ.random_element(4,1000)
+        start=ZZ.random_element(3,end)
+        
+        if ( prime_pi(end-1)-prime_pi(start) )!= 0:
+                                    
+            #Generate random amounts of memory and set threshold=end-start (no trees)
+            
+            threshold=end-start
+            total_memory=2**ZZ.random_element(5,13)
+            
+            #Create the product trees and dictionaries
+            object_dict={}
+            product_tree(get_object, multiply_objects, start, end, threshold, object_dict)
+            moduli_dict={}
+            product_tree(get_modulus, multiply_moduli, start, end, threshold, moduli_dict)
+                        
+            remainder_dict={}
+            stage2_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, initial_vector)
+            remainder_dict=remainder_tree(start, end, stage2_vector,  moduli_dict, object_dict, get_object,get_modulus,  multiply_objects,multiply_moduli,reduce_object, remainder_dict )
+            
+            #compare random elements in the remainder dictionary
+            #noting that python dictionaries are unordered
+            
+            #select a random entry
+            value=dict.keys(remainder_dict)[0]        
+                                   
+            x=factorial(value-1)
+            y=sum(factorial(k) for k in [0,..,value-1])
+                               
+            naive_answer=vector([x,y])% value
+            
+                                    
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])
+            
+            del naive_answer
+
+    for i in range(number_of_tests):
+        
+        #generate random endpoints and check if they have primes in the interval
+        
+        end=ZZ.random_element(4,40)
+        start=ZZ.random_element(3,end)
+        
+        if ( prime_pi(end-1)-prime_pi(start) )!= 0:
+                
+            #Generate random amounts of memory and  threshold
+            threshold=ZZ.random_element(0, end-start)
+            total_memory=2**ZZ.random_element(5,13)
+            
+            #Create the product trees and dictionaries
+            object_dict={}
+            product_tree(get_object, multiply_objects, start, end, threshold, object_dict)
+            moduli_dict={}
+            product_tree(get_modulus, multiply_moduli, start, end, threshold, moduli_dict)
+            
+            remainder_dict={}
+            stage2_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, initial_vector)
+            remainder_dict=remainder_tree(start, end, stage2_vector,  moduli_dict, object_dict, get_object,get_modulus,  multiply_objects,multiply_moduli,reduce_object, remainder_dict )
+            
+            #compare random elements in the remainder dictionary
+            #noting that python dictionaries are unordered
+            
+            #select a random entry
+            value=dict.keys(remainder_dict)[0]        
+                                   
+            x=factorial(value-1)
+            y=sum(factorial(k) for k in [0,..,value-1])
+                               
+            naive_answer=vector([x,y])% value
+            
+                                    
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])
+                        
+            del naive_answer
+    
+    for i in range(number_of_tests):
+        
+        #generate random endpoints and check if they have primes in the interval
+        
+        end=ZZ.random_element(4,40)
+        start=ZZ.random_element(3,end)
+        
+        if ( prime_pi(end-1)-prime_pi(start) )!= 0:
+                
+            #Generate random amounts of memory and  threshold
+            threshold=ZZ.random_element(0, end-start)
+            total_memory=2**ZZ.random_element(5,13)
+            
+            #Create the product trees and dictionaries
+            object_dict={}
+            product_tree(get_object, multiply_objects, start, end, threshold, object_dict)
+            moduli_dict={}
+            product_tree(get_modulus, multiply_moduli, start, end, threshold, moduli_dict)
+            
+            remainder_dict={}
+            stage2_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, initial_vector)
+            remainder_dict=remainder_tree(start, end, stage2_vector,  moduli_dict, object_dict, get_object,get_modulus,  multiply_objects,multiply_moduli,reduce_object, remainder_dict )
+            
+            #compare random elements in the remainder dictionary
+            #noting that python dictionaries are unordered
+            
+            #select a random entry
+            value=dict.keys(remainder_dict)[0]        
+                                   
+            x=factorial(value-1)
+            y=sum(factorial(k) for k in [0,..,value-1])
+                               
+            naive_answer=vector([x,y])% value
+            
+                                    
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+            assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])
+            
+            
+            del naive_answer
+               
+    print 'SUCCESS'       
+
+def stage2_test(number_of_tests):    
+    #this function tests the stage 2 function for correct outputs 
+    #using kurepas conjecture it requires stage 1 functions
+    
+    for i in range(number_of_tests):
+        
+        end=ZZ.random_element(4,10000)
+        start=ZZ.random_element(3, end)
+        
+        total_memory=2**ZZ.random_element(13,22)
+        threshold=ZZ.random_element(0, end-start)
+                
+        V=kurepa_vector(1,1)
+        
+        initial_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, V)
+        
+        
+        D={}
+        D=stage2(start,end, total_memory, threshold, initial_vector,  get_object, multiply_objects, get_modulus, multiply_moduli, reduce_object)
+        
+       #compare random elements in the remainder dictionary
+       #noting that python dictionaries are unordered
+	
+       #select a random entry
+        value=dict.keys(remainder_dict)[0]
+	
+        naive_answer=vector([ factorial( value-1),sum( factorial(k) for k in [ 0,..,value-1 ] ) ])% value
+				
+        assert(remainder_dict[dict.keys(remainder_dict)[0]].x.value==naive_answer[0])
+        assert(remainder_dict[dict.keys(remainder_dict)[0]].y.value==naive_answer[1])    
+	
+	del naive_answer
+        
+def stage2_memory_usage_test():
+    #gives memory usage of stage 2 for random start and end
+    #for kurepas conjecture and prints peak memory usage
+    #note that this doesnt work inside a function, need memory and 
+    #peak memory to be global
+    
+    global MEMORY, PEAK_MEMORY
+    MEMORY=0
+    PEAK_MEMORY=0 
+    
+    end=10**7+10**5
+    start=10**7
+    
+    total_memory=2**19
+    threshold=ZZ.random_element(0, end-start)
+       
+    V=kurepa_vector(1,1)
+    
+    t=cputime()
+    
+    initial_vector=stage1(start, end, total_memory, get_object, multiply_objects, get_modulus, V)
+    
+    print 'stage 1 complete'
+    
+    print 'stage 1 time'
+    
+    print cputime(t)
+    
+    t=cputime()
+    
+       
+    D={}
+    D=stage2(start,end, total_memory, threshold, initial_vector,  get_object, multiply_objects, get_modulus, multiply_moduli, reduce_object)
+    print D
+    del D
+    
+    print 'start. end'
+    print start, end
+    print 'threshold'
+    print threshold
+    print 'total memory'
+    print total_memory
+    
+    print 'Memory'
+    print MEMORY
+    print 'Peak Memory Usage'
+    print PEAK_MEMORY 
+    
+    
+    print 'time'
+    print cputime(t)
+    
+########################################
+#Test using kurepas conjecture functions
+########################################
+
+number_of_tests=100
+MEMORY=0
+PEAK_MEMORY=0
+
+#product_tree_test(get_object, multiply_objects, number_of_tests)
+#product_tree_test(get_modulus, multiply_moduli, number_of_tests)
+
+#retrieve_node_value_test(get_object, multiply_objects, number_of_tests)
+#retrieve_node_value_test(get_modulus, multiply_moduli, number_of_tests)
+#remainder_tree_test(number_of_tests)
+#stage2_test(number_of_tests)
+#stage2_memory_usage_test()
